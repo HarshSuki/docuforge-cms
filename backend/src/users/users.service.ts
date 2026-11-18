@@ -57,13 +57,27 @@ export class UsersService {
     });
   }
 
-  async update(id: string, dto: UpdateUserDto, requestingUserId: string, requestingUserRole: Role): Promise<SafeUser> {
+  async update(
+    id: string,
+    dto: UpdateUserDto,
+    requestingUserId: string,
+    requestingUserRole: Role,
+  ): Promise<SafeUser> {
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) throw new NotFoundException('User not found');
 
-    // Only admins can change roles or deactivate other users
-    if ((dto.role || dto.isActive !== undefined) && requestingUserId !== id) {
-      if (requestingUserRole !== Role.SUPER_ADMIN && requestingUserRole !== Role.ADMIN) {
+    const isAdmin =
+      requestingUserRole === Role.SUPER_ADMIN || requestingUserRole === Role.ADMIN;
+    const isSelf = requestingUserId === id;
+
+    // Non-admins may only edit their own profile fields.
+    if (!isSelf && !isAdmin) {
+      throw new ForbiddenException('You can only update your own profile');
+    }
+
+    // Role / active status are admin-only — including self-escalation.
+    if (dto.role !== undefined || dto.isActive !== undefined) {
+      if (!isAdmin) {
         throw new ForbiddenException('Insufficient permissions to change role or status');
       }
     }

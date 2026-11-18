@@ -95,15 +95,21 @@ export class ProjectsService {
     const member = await this.prisma.projectMember.findUnique({
       where: { projectId_userId: { projectId, userId } },
     });
-    if (!member) {
-      const project = await this.prisma.project.findUnique({
-        where: { id: projectId },
-        include: { workspace: { include: { members: { where: { userId } } } } },
-      });
-      if (!project?.workspace?.members?.length) throw new ForbiddenException('Access denied');
+    if (member) {
+      if (member.role !== Role.ADMIN && member.role !== Role.SUPER_ADMIN) {
+        throw new ForbiddenException('Admin access required');
+      }
       return;
     }
-    if (member.role !== Role.ADMIN && member.role !== Role.SUPER_ADMIN) {
+
+    // Fall back to workspace admin (not any workspace member).
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      include: { workspace: { include: { members: { where: { userId } } } } },
+    });
+    const wsMember = project?.workspace?.members?.[0];
+    if (!wsMember) throw new ForbiddenException('Access denied');
+    if (wsMember.role !== Role.ADMIN && wsMember.role !== Role.SUPER_ADMIN) {
       throw new ForbiddenException('Admin access required');
     }
   }

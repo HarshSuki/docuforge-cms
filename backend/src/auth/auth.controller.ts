@@ -7,6 +7,7 @@ import {
   UseGuards,
   Req,
   Get,
+  ForbiddenException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Request } from 'express';
@@ -28,6 +29,14 @@ export class AuthController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Register a new user account' })
   async register(@Body() dto: RegisterDto, @Req() req: Request) {
+    // Public self-registration is off in production unless explicitly enabled.
+    const allowPublic =
+      process.env.ALLOW_PUBLIC_REGISTRATION === 'true' ||
+      process.env.NODE_ENV !== 'production';
+    if (!allowPublic) {
+      throw new ForbiddenException('Public registration is disabled');
+    }
+
     const ipAddress = req.ip || req.headers['x-forwarded-for'] as string;
     return this.authService.register(dto, ipAddress);
   }

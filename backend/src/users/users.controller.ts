@@ -7,8 +7,7 @@ import {
   Body,
   UseGuards,
   ParseUUIDPipe,
-  HttpCode,
-  HttpStatus,
+  ForbiddenException,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { UsersService } from './users.service';
@@ -50,13 +49,17 @@ export class UsersController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get user by ID' })
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
+  @ApiOperation({ summary: 'Get user by ID (self or admin)' })
+  findOne(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: any) {
+    const isAdmin = user.role === Role.SUPER_ADMIN || user.role === Role.ADMIN;
+    if (user.id !== id && !isAdmin) {
+      throw new ForbiddenException('You can only view your own profile');
+    }
     return this.usersService.findOne(id);
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Update user' })
+  @ApiOperation({ summary: 'Update user (self profile or admin)' })
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateUserDto,
